@@ -1,14 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { InputArea } from '@/components/InputArea';
 import { FileUpload } from '@/components/FileUpload';
 import { ResultsTable, Result } from '@/components/ResultsTable';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { fetchChainList, checkAddressBalance } from '@/utils/chainUtils';
 
 const Index = () => {
   const [input, setInput] = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [chains, setChains] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadChains = async () => {
+      const chainList = await fetchChainList();
+      setChains(chainList);
+      console.log('Loaded chains:', chainList.length);
+    };
+    loadChains();
+  }, []);
 
   const handleInputChange = (value: string) => {
     setInput(value);
@@ -22,6 +33,11 @@ const Index = () => {
   const processInput = async () => {
     if (!input.trim()) {
       toast.error('Please enter some data first');
+      return;
+    }
+
+    if (chains.length === 0) {
+      toast.error('Chain list not loaded yet');
       return;
     }
 
@@ -50,18 +66,21 @@ const Index = () => {
           idx === i ? { ...r, status: 'checking' } : r
         ));
 
-        // Simulate balance checking (this should be replaced with actual API calls)
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Check balances for each chain
+        const balances = [];
+        for (const chain of chains) {
+          const balance = await checkAddressBalance(result.address, chain);
+          if (balance) {
+            balances.push(balance);
+          }
+        }
         
-        // Update with mock balances (replace with actual balance checking)
+        // Update with balances
         setResults(prev => prev.map((r, idx) => 
           idx === i ? {
             ...r,
             status: 'done',
-            balances: [
-              { chainId: 'ETH', amount: '0.0' },
-              { chainId: 'BSC', amount: '0.0' }
-            ]
+            balances: balances
           } : r
         ));
       }

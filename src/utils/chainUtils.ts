@@ -1,0 +1,77 @@
+import axios from 'axios';
+import Web3 from 'web3';
+
+interface Chain {
+  name: string;
+  chain: string;
+  icon?: string;
+  rpc: string[];
+  chainId: number;
+}
+
+export interface ChainBalance {
+  chainId: string;
+  amount: string;
+}
+
+// Кэш для рабочих RPC
+const workingRpcCache: { [chainId: number]: string } = {};
+
+export const fetchChainList = async () => {
+  try {
+    console.log('Fetching chain list...');
+    const response = await axios.get('https://raw.githubusercontent.com/XDeFi-tech/chainlist-json/refs/heads/main/export.json');
+    return response.data as Chain[];
+  } catch (error) {
+    console.error('Error fetching chain list:', error);
+    return [];
+  }
+};
+
+const findWorkingRpc = async (chain: Chain): Promise<string | null> => {
+  // Проверяем кэш
+  if (workingRpcCache[chain.chainId]) {
+    return workingRpcCache[chain.chainId];
+  }
+
+  console.log(`Finding working RPC for chain ${chain.name}...`);
+  
+  for (const rpc of chain.rpc) {
+    try {
+      const web3 = new Web3(rpc);
+      await web3.eth.getBlockNumber();
+      workingRpcCache[chain.chainId] = rpc;
+      console.log(`Found working RPC for ${chain.name}: ${rpc}`);
+      return rpc;
+    } catch (error) {
+      console.log(`RPC ${rpc} failed for ${chain.name}`);
+      continue;
+    }
+  }
+  
+  return null;
+};
+
+export const checkAddressBalance = async (address: string, chain: Chain): Promise<ChainBalance | null> => {
+  const rpc = await findWorkingRpc(chain);
+  if (!rpc) {
+    console.log(`No working RPC found for chain ${chain.name}`);
+    return null;
+  }
+
+  try {
+    const web3 = new Web3(rpc);
+    const balance = await web3.eth.getBalance(address);
+    const formattedBalance = web3.utils.fromWei(balance, 'ether');
+    
+    console.log(`Balance for ${address} on ${chain.name}: ${formattedBalance}`);
+    
+    return {
+      chainId: chain.name,
+      amount: formattedBalance
+    };
+  } catch (error) {
+    console.error(`Error checking balance for ${address} on ${chain.name}:`, error);
+    return null;
+  }
+};
