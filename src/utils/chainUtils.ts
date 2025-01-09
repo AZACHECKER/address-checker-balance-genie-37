@@ -4,7 +4,6 @@ import Web3 from 'web3';
 interface Chain {
   name: string;
   chain: string;
-  icon?: string;
   rpc: string[];
   chainId: number;
 }
@@ -23,7 +22,6 @@ export const fetchChainList = async () => {
     console.log('Fetching chain list...');
     const chainList: Chain[] = [];
     
-    // Преобразуем предоставленный JSON в массив цепочек
     const response = await axios.get('https://raw.githubusercontent.com/XDeFi-tech/chainlist-json/refs/heads/main/export.json');
     const data = response.data;
     
@@ -46,107 +44,60 @@ export const fetchChainList = async () => {
   }
 };
 
-export const checkRpc = async (rpc: string): Promise<boolean> => {
+export const deriveAddressFromPrivateKey = (privateKey: string): string => {
   try {
-    const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
-      timeout: 5000, // 5 second timeout
-      headers: [
-        {
-          name: 'Origin',
-          value: window.location.origin
-        }
-      ]
-    }));
-    await web3.eth.getBlockNumber();
-    return true;
-  } catch (error: any) {
-    // Log specific error types for debugging
-    if (error.message?.includes('CORS')) {
-      console.log(`CORS error for RPC ${rpc}`);
-    } else if (error.response?.status === 429) {
-      console.log(`Rate limit error for RPC ${rpc}`);
+    if (!privateKey.startsWith('0x')) {
+      privateKey = '0x' + privateKey;
     }
-    return false;
+    const web3 = new Web3();
+    const account = web3.eth.accounts.privateKeyToAccount(privateKey);
+    return account.address;
+  } catch (error) {
+    console.error('Error deriving address from private key:', error);
+    return '';
   }
 };
 
-const findWorkingRpc = async (chain: Chain, onRpcCheck?: (rpc: string, success: boolean) => void): Promise<string | null> => {
-  // Check cache first
-  if (workingRpcCache[chain.chainId]) {
-    try {
-      // Verify cached RPC is still working
-      const isWorking = await checkRpc(workingRpcCache[chain.chainId]);
-      if (isWorking) {
-        return workingRpcCache[chain.chainId];
-      }
-      // If not working, delete from cache
-      delete workingRpcCache[chain.chainId];
-    } catch (error) {
-      delete workingRpcCache[chain.chainId];
-    }
+export const deriveAddressFromMnemonic = (mnemonic: string): string => {
+  try {
+    const web3 = new Web3();
+    const hdWallet = web3.eth.accounts.wallet.create(1, mnemonic);
+    return hdWallet[0].address;
+  } catch (error) {
+    console.error('Error deriving address from mnemonic:', error);
+    return '';
   }
-
-  console.log(`Finding working RPC for chain ${chain.name}...`);
-  
-  for (const rpc of chain.rpc) {
-    if (!rpc.startsWith('http')) continue; // Skip WebSocket RPCs
-    
-    try {
-      onRpcCheck?.(rpc, false);
-      const isWorking = await checkRpc(rpc);
-      
-      if (isWorking) {
-        workingRpcCache[chain.chainId] = rpc;
-        onRpcCheck?.(rpc, true);
-        console.log(`Found working RPC for ${chain.name}: ${rpc}`);
-        return rpc;
-      }
-      
-      console.log(`RPC ${rpc} failed for ${chain.name}`);
-    } catch (error) {
-      console.error(`Error checking RPC ${rpc}:`, error);
-      onRpcCheck?.(rpc, false);
-    }
-  }
-  
-  console.log(`No working RPC found for chain ${chain.name}`);
-  return null;
 };
 
 export const checkAddressBalance = async (
-  address: string, 
+  address: string,
   chain: Chain,
   onRpcCheck?: (rpc: string, success: boolean) => void
 ): Promise<ChainBalance | null> => {
-  const rpc = await findWorkingRpc(chain, onRpcCheck);
-  if (!rpc) {
-    console.log(`No working RPC found for chain ${chain.name}`);
-    return null;
-  }
+  for (const rpc of chain.rpc) {
+    try {
+      const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
+        timeout: 5000,
+      }));
 
-  try {
-    const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
-      timeout: 5000,
-      headers: [
-        {
-          name: 'Origin',
-          value: window.location.origin
-        }
-      ]
-    }));
-    
-    const balance = await web3.eth.getBalance(address);
-    const formattedBalance = web3.utils.fromWei(balance, 'ether');
-    
-    console.log(`Balance for ${address} on ${chain.name}: ${formattedBalance}`);
-    
-    return {
-      chainId: chain.name,
-      amount: formattedBalance,
-      rpcUrl: rpc
-    };
-  } catch (error) {
-    console.error(`Error checking balance for ${address} on ${chain.name}:`, error);
-    return null;
+      onRpcCheck?.(rpc, false);
+      const balance = await web3.eth.getBalance(address);
+      const formattedBalance = web3.utils.fromWei(balance, 'ether');
+      
+      if (parseFloat(formattedBalance) > 0) {
+        onRpcCheck?.(rpc, true);
+        return {
+          chainId: chain.name,
+          amount: formattedBalance,
+          rpcUrl: rpc
+        };
+      }
+      
+      onRpcCheck?.(rpc, true);
+    } catch (error) {
+      console.error(`Error checking balance on ${chain.name} (${rpc}):`, error);
+      onRpcCheck?.(rpc, false);
+    }
   }
+  return null;
 };

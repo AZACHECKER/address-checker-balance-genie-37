@@ -4,7 +4,12 @@ import { FileUpload } from '@/components/FileUpload';
 import { ResultsTable, Result } from '@/components/ResultsTable';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { fetchChainList, checkAddressBalance } from '@/utils/chainUtils';
+import { 
+  fetchChainList, 
+  checkAddressBalance,
+  deriveAddressFromPrivateKey,
+  deriveAddressFromMnemonic
+} from '@/utils/chainUtils';
 
 const Index = () => {
   const [input, setInput] = useState('');
@@ -33,6 +38,29 @@ const Index = () => {
     toast.success('File loaded successfully');
   };
 
+  const detectInputType = (input: string): 'address' | 'private_key' | 'mnemonic' => {
+    input = input.trim();
+    if (input.match(/^(0x)?[0-9a-fA-F]{40}$/)) {
+      return 'address';
+    } else if (input.match(/^(0x)?[0-9a-fA-F]{64}$/)) {
+      return 'private_key';
+    } else if (input.split(' ').length >= 12) {
+      return 'mnemonic';
+    }
+    return 'address'; // По умолчанию считаем адресом
+  };
+
+  const getAddressFromInput = (input: string, type: 'address' | 'private_key' | 'mnemonic'): string => {
+    switch (type) {
+      case 'private_key':
+        return deriveAddressFromPrivateKey(input);
+      case 'mnemonic':
+        return deriveAddressFromMnemonic(input);
+      default:
+        return input;
+    }
+  };
+
   const processInput = async () => {
     if (!input.trim()) {
       toast.error('Please enter some data first');
@@ -49,15 +77,19 @@ const Index = () => {
     try {
       const lines = input.split('\n').filter(line => line.trim());
       
-      const initialResults: Result[] = lines.map(line => ({
-        address: line.trim(),
-        type: 'address',
-        balances: [],
-        status: 'pending',
-        totalRpcs,
-        checkedRpcs: 0,
-        progress: 0
-      }));
+      const initialResults: Result[] = lines.map(line => {
+        const type = detectInputType(line.trim());
+        const address = getAddressFromInput(line.trim(), type);
+        return {
+          address,
+          type,
+          balances: [],
+          status: 'pending',
+          totalRpcs,
+          checkedRpcs: 0,
+          progress: 0
+        };
+      });
       
       setResults(initialResults);
 
@@ -88,6 +120,13 @@ const Index = () => {
           );
           if (balance) {
             balances.push(balance);
+            // Обновляем результаты сразу после нахождения баланса
+            setResults(prev => prev.map((r, idx) => 
+              idx === i ? {
+                ...r,
+                balances: [...r.balances, balance]
+              } : r
+            ));
           }
         }
         
@@ -95,7 +134,6 @@ const Index = () => {
           idx === i ? {
             ...r,
             status: 'done',
-            balances: balances,
             progress: 100
           } : r
         ));
