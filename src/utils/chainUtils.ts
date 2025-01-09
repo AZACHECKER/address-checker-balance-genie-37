@@ -48,38 +48,68 @@ export const fetchChainList = async () => {
 
 export const checkRpc = async (rpc: string): Promise<boolean> => {
   try {
-    const web3 = new Web3(rpc);
+    const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
+      timeout: 5000, // 5 second timeout
+      headers: [
+        {
+          name: 'Origin',
+          value: window.location.origin
+        }
+      ]
+    }));
     await web3.eth.getBlockNumber();
     return true;
-  } catch (error) {
+  } catch (error: any) {
+    // Log specific error types for debugging
+    if (error.message?.includes('CORS')) {
+      console.log(`CORS error for RPC ${rpc}`);
+    } else if (error.response?.status === 429) {
+      console.log(`Rate limit error for RPC ${rpc}`);
+    }
     return false;
   }
 };
 
 const findWorkingRpc = async (chain: Chain, onRpcCheck?: (rpc: string, success: boolean) => void): Promise<string | null> => {
+  // Check cache first
   if (workingRpcCache[chain.chainId]) {
-    return workingRpcCache[chain.chainId];
+    try {
+      // Verify cached RPC is still working
+      const isWorking = await checkRpc(workingRpcCache[chain.chainId]);
+      if (isWorking) {
+        return workingRpcCache[chain.chainId];
+      }
+      // If not working, delete from cache
+      delete workingRpcCache[chain.chainId];
+    } catch (error) {
+      delete workingRpcCache[chain.chainId];
+    }
   }
 
   console.log(`Finding working RPC for chain ${chain.name}...`);
   
   for (const rpc of chain.rpc) {
-    if (!rpc.startsWith('http')) continue; // Пропускаем WebSocket RPC
+    if (!rpc.startsWith('http')) continue; // Skip WebSocket RPCs
     
     try {
-      const web3 = new Web3(rpc);
-      await web3.eth.getBlockNumber();
-      workingRpcCache[chain.chainId] = rpc;
-      onRpcCheck?.(rpc, true);
-      console.log(`Found working RPC for ${chain.name}: ${rpc}`);
-      return rpc;
-    } catch (error) {
       onRpcCheck?.(rpc, false);
+      const isWorking = await checkRpc(rpc);
+      
+      if (isWorking) {
+        workingRpcCache[chain.chainId] = rpc;
+        onRpcCheck?.(rpc, true);
+        console.log(`Found working RPC for ${chain.name}: ${rpc}`);
+        return rpc;
+      }
+      
       console.log(`RPC ${rpc} failed for ${chain.name}`);
-      continue;
+    } catch (error) {
+      console.error(`Error checking RPC ${rpc}:`, error);
+      onRpcCheck?.(rpc, false);
     }
   }
   
+  console.log(`No working RPC found for chain ${chain.name}`);
   return null;
 };
 
@@ -95,7 +125,16 @@ export const checkAddressBalance = async (
   }
 
   try {
-    const web3 = new Web3(rpc);
+    const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
+      timeout: 5000,
+      headers: [
+        {
+          name: 'Origin',
+          value: window.location.origin
+        }
+      ]
+    }));
+    
     const balance = await web3.eth.getBalance(address);
     const formattedBalance = web3.utils.fromWei(balance, 'ether');
     
