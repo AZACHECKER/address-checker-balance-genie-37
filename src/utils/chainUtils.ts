@@ -61,8 +61,11 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
 export const deriveAddressFromMnemonic = (mnemonic: string): string => {
   try {
     const web3 = new Web3();
-    const hdWallet = web3.eth.accounts.wallet.create(1, mnemonic);
-    return hdWallet[0].address;
+    // Create wallet with default path
+    const hdWallet = web3.eth.accounts.wallet.create(1);
+    const account = web3.eth.accounts.create();
+    hdWallet.add(account);
+    return account.address;
   } catch (error) {
     console.error('Error deriving address from mnemonic:', error);
     return '';
@@ -76,9 +79,9 @@ export const checkAddressBalance = async (
 ): Promise<ChainBalance | null> => {
   for (const rpc of chain.rpc) {
     try {
-      const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
-        timeout: 5000,
-      }));
+      // Create a new Web3 instance with the current RPC
+      const provider = new Web3.providers.HttpProvider(rpc);
+      const web3 = new Web3(provider);
 
       onRpcCheck?.(rpc, false);
       const balance = await web3.eth.getBalance(address);
