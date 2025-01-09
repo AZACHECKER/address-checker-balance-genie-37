@@ -9,14 +9,14 @@ interface InputAreaProps {
 
 export const InputArea: React.FC<InputAreaProps> = ({ value, onChange }) => {
   return (
-    <div className="space-y-2">
-      <Label htmlFor="input">Enter addresses, private keys or mnemonic phrases (one per line)</Label>
+    <div className="space-y-2 w-full">
+      <Label htmlFor="input" className="text-sm md:text-base">Enter addresses, private keys or mnemonic phrases (one per line)</Label>
       <Textarea
         id="input"
         placeholder="Enter data here or upload a file..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-h-[200px] font-mono"
+        className="min-h-[150px] md:min-h-[200px] font-mono text-sm md:text-base"
       />
     </div>
   );

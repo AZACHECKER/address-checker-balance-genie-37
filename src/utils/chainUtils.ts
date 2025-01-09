@@ -12,6 +12,7 @@ interface Chain {
 export interface ChainBalance {
   chainId: string;
   amount: string;
+  rpcUrl?: string;
 }
 
 // Кэш для рабочих RPC
@@ -28,8 +29,17 @@ export const fetchChainList = async () => {
   }
 };
 
-const findWorkingRpc = async (chain: Chain): Promise<string | null> => {
-  // Проверяем кэш
+export const checkRpc = async (rpc: string): Promise<boolean> => {
+  try {
+    const web3 = new Web3(rpc);
+    await web3.eth.getBlockNumber();
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+const findWorkingRpc = async (chain: Chain, onRpcCheck?: (rpc: string, success: boolean) => void): Promise<string | null> => {
   if (workingRpcCache[chain.chainId]) {
     return workingRpcCache[chain.chainId];
   }
@@ -41,9 +51,11 @@ const findWorkingRpc = async (chain: Chain): Promise<string | null> => {
       const web3 = new Web3(rpc);
       await web3.eth.getBlockNumber();
       workingRpcCache[chain.chainId] = rpc;
+      onRpcCheck?.(rpc, true);
       console.log(`Found working RPC for ${chain.name}: ${rpc}`);
       return rpc;
     } catch (error) {
+      onRpcCheck?.(rpc, false);
       console.log(`RPC ${rpc} failed for ${chain.name}`);
       continue;
     }
@@ -52,8 +64,12 @@ const findWorkingRpc = async (chain: Chain): Promise<string | null> => {
   return null;
 };
 
-export const checkAddressBalance = async (address: string, chain: Chain): Promise<ChainBalance | null> => {
-  const rpc = await findWorkingRpc(chain);
+export const checkAddressBalance = async (
+  address: string, 
+  chain: Chain,
+  onRpcCheck?: (rpc: string, success: boolean) => void
+): Promise<ChainBalance | null> => {
+  const rpc = await findWorkingRpc(chain, onRpcCheck);
   if (!rpc) {
     console.log(`No working RPC found for chain ${chain.name}`);
     return null;
@@ -68,7 +84,8 @@ export const checkAddressBalance = async (address: string, chain: Chain): Promis
     
     return {
       chainId: chain.name,
-      amount: formattedBalance
+      amount: formattedBalance,
+      rpcUrl: rpc
     };
   } catch (error) {
     console.error(`Error checking balance for ${address} on ${chain.name}:`, error);

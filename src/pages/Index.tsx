@@ -11,12 +11,15 @@ const Index = () => {
   const [results, setResults] = useState<Result[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [chains, setChains] = useState<any[]>([]);
+  const [totalRpcs, setTotalRpcs] = useState(0);
 
   useEffect(() => {
     const loadChains = async () => {
       const chainList = await fetchChainList();
       setChains(chainList);
-      console.log('Loaded chains:', chainList.length);
+      const totalRpcCount = chainList.reduce((acc, chain) => acc + chain.rpc.length, 0);
+      setTotalRpcs(totalRpcCount);
+      console.log('Loaded chains:', chainList.length, 'Total RPCs:', totalRpcCount);
     };
     loadChains();
   }, []);
@@ -44,43 +47,56 @@ const Index = () => {
     setIsProcessing(true);
     
     try {
-      // Split input into lines and remove empty lines
       const lines = input.split('\n').filter(line => line.trim());
       
-      // Initialize results
       const initialResults: Result[] = lines.map(line => ({
         address: line.trim(),
-        type: 'address', // This is a placeholder - we'll need to detect the actual type
+        type: 'address',
         balances: [],
-        status: 'pending'
+        status: 'pending',
+        totalRpcs,
+        checkedRpcs: 0,
+        progress: 0
       }));
       
       setResults(initialResults);
 
-      // Process each line
       for (let i = 0; i < initialResults.length; i++) {
         const result = initialResults[i];
+        let checkedRpcs = 0;
         
-        // Update status to checking
         setResults(prev => prev.map((r, idx) => 
           idx === i ? { ...r, status: 'checking' } : r
         ));
 
-        // Check balances for each chain
         const balances = [];
         for (const chain of chains) {
-          const balance = await checkAddressBalance(result.address, chain);
+          const balance = await checkAddressBalance(
+            result.address, 
+            chain,
+            (rpc, success) => {
+              checkedRpcs++;
+              const progress = (checkedRpcs / totalRpcs) * 100;
+              setResults(prev => prev.map((r, idx) => 
+                idx === i ? { 
+                  ...r, 
+                  checkedRpcs,
+                  progress
+                } : r
+              ));
+            }
+          );
           if (balance) {
             balances.push(balance);
           }
         }
         
-        // Update with balances
         setResults(prev => prev.map((r, idx) => 
           idx === i ? {
             ...r,
             status: 'done',
-            balances: balances
+            balances: balances,
+            progress: 100
           } : r
         ));
       }
@@ -95,16 +111,21 @@ const Index = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <h1 className="text-3xl font-bold mb-8">Crypto Address Checker</h1>
+    <div className="container mx-auto p-4 md:py-8 space-y-6">
+      <h1 className="text-2xl md:text-3xl font-bold mb-8">Crypto Address Checker</h1>
       
       <div className="space-y-4">
+        <div className="text-sm text-muted-foreground">
+          Total chains: {chains.length} | Total RPCs: {totalRpcs}
+        </div>
+        
         <InputArea value={input} onChange={handleInputChange} />
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <FileUpload onFileSelect={handleFileSelect} />
           <Button 
             onClick={processInput}
             disabled={isProcessing || !input.trim()}
+            className="w-full md:w-auto"
           >
             {isProcessing ? 'Processing...' : 'Check Addresses'}
           </Button>
