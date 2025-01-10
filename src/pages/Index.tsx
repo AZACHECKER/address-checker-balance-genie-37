@@ -161,7 +161,7 @@ const Index = () => {
           <Button 
             onClick={processInput}
             disabled={isProcessing || !input.trim()}
-            className="w-full md:w-auto"
+            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
           >
             {isProcessing ? 'Проверка...' : 'Проверить адреса'}
           </Button>
