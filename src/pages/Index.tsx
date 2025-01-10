@@ -35,7 +35,7 @@ const Index = () => {
 
   const handleFileSelect = (content: string) => {
     setInput(content);
-    toast.success('File loaded successfully');
+    toast.success('Файл успешно загружен');
   };
 
   const detectInputType = (input: string): 'address' | 'private_key' | 'mnemonic' => {
@@ -63,12 +63,12 @@ const Index = () => {
 
   const processInput = async () => {
     if (!input.trim()) {
-      toast.error('Please enter some data first');
+      toast.error('Пожалуйста, введите данные');
       return;
     }
 
     if (chains.length === 0) {
-      toast.error('Chain list not loaded yet');
+      toast.error('Список сетей не загружен');
       return;
     }
 
@@ -120,7 +120,6 @@ const Index = () => {
           );
           if (balance) {
             balances.push(balance);
-            // Обновляем результаты сразу после нахождения баланса
             setResults(prev => prev.map((r, idx) => 
               idx === i ? {
                 ...r,
@@ -139,10 +138,10 @@ const Index = () => {
         ));
       }
 
-      toast.success('Processing complete');
+      toast.success('Проверка завершена');
     } catch (error) {
       console.error('Processing error:', error);
-      toast.error('An error occurred while processing');
+      toast.error('Произошла ошибка при обработке');
     } finally {
       setIsProcessing(false);
     }
@@ -150,11 +149,11 @@ const Index = () => {
 
   return (
     <div className="container mx-auto p-4 md:py-8 space-y-6">
-      <h1 className="text-2xl md:text-3xl font-bold mb-8">Crypto Address Checker</h1>
+      <h1 className="text-2xl md:text-3xl font-bold mb-8 text-white">Проверка криптовалютных адресов</h1>
       
       <div className="space-y-4">
-        <div className="text-sm text-muted-foreground">
-          Total chains: {chains.length} | Total RPCs: {totalRpcs}
+        <div className="text-sm text-white/60">
+          Всего сетей: {chains.length} | Всего RPC: {totalRpcs}
         </div>
         
         <InputArea value={input} onChange={handleInputChange} />
@@ -165,14 +164,14 @@ const Index = () => {
             disabled={isProcessing || !input.trim()}
             className="w-full md:w-auto"
           >
-            {isProcessing ? 'Processing...' : 'Check Addresses'}
+            {isProcessing ? 'Проверка...' : 'Проверить адреса'}
           </Button>
         </div>
       </div>
 
       {results.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Results</h2>
+          <h2 className="text-xl font-semibold text-white">Результаты</h2>
           <ResultsTable results={results} />
         </div>
       )}
