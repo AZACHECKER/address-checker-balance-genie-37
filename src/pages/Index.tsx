@@ -24,7 +24,7 @@ const Index = () => {
       setChains(chainList);
       const totalRpcCount = chainList.reduce((acc, chain) => acc + chain.rpc.length, 0);
       setTotalRpcs(totalRpcCount);
-      console.log('Loaded chains:', chainList.length, 'Total RPCs:', totalRpcCount);
+      console.log('Загружено сетей:', chainList.length, 'Всего RPC:', totalRpcCount);
     };
     loadChains();
   }, []);
@@ -47,7 +47,7 @@ const Index = () => {
     } else if (input.split(' ').length >= 12) {
       return 'mnemonic';
     }
-    return 'address'; // По умолчанию считаем адресом
+    return 'address';
   };
 
   const getAddressFromInput = (input: string, type: 'address' | 'private_key' | 'mnemonic'): string => {
@@ -101,7 +101,6 @@ const Index = () => {
           idx === i ? { ...r, status: 'checking' } : r
         ));
 
-        const balances = [];
         for (const chain of chains) {
           const balance = await checkAddressBalance(
             result.address, 
@@ -118,8 +117,8 @@ const Index = () => {
               ));
             }
           );
+          
           if (balance) {
-            balances.push(balance);
             setResults(prev => prev.map((r, idx) => 
               idx === i ? {
                 ...r,
@@ -140,7 +139,7 @@ const Index = () => {
 
       toast.success('Проверка завершена');
     } catch (error) {
-      console.error('Processing error:', error);
+      console.error('Ошибка обработки:', error);
       toast.error('Произошла ошибка при обработке');
     } finally {
       setIsProcessing(false);

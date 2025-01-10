@@ -51,22 +51,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'Ожидание';
-      case 'checking':
-        return 'Проверка...';
-      case 'done':
-        return 'Завершено';
-      default:
-        return status;
-    }
-  };
-
   return (
     <>
-      <div className="rounded-md border overflow-x-auto bg-white/5 backdrop-blur-sm">
+      <div className="rounded-md border overflow-x-auto bg-black/20 backdrop-blur-sm">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-white/5">
@@ -111,7 +98,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                     {result.balances.map((balance, idx) => (
                       <div key={idx} className="text-xs md:text-sm bg-white/5 p-2 rounded-md backdrop-blur-sm">
                         <span className="font-medium text-white/90">{balance.chainId}:</span>{' '}
-                        <span className="font-mono text-white/90">{balance.amount}</span>
+                        <span className="font-mono text-white/90">{balance.amount || '0'}</span>
                       </div>
                     ))}
                   </div>
@@ -125,7 +112,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       <Dialog open={!!selectedResult} onOpenChange={() => setSelectedResult(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-gray-900/95 backdrop-blur-sm text-white">
           <DialogHeader>
-            <DialogTitle>Детали проверки баланса</DialogTitle>
+            <DialogTitle>Детальная информация</DialogTitle>
           </DialogHeader>
           
           {selectedResult && (
@@ -139,13 +126,13 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
               <div className="space-y-2">
                 <div className="text-sm text-white/60">Тип</div>
-                <div className="capitalize bg-white/5 p-3 rounded-lg">
+                <div className="bg-white/5 p-3 rounded-lg">
                   {getTypeLabel(selectedResult.type)}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Статус</div>
+                <div className="text-sm text-white/60">Статус проверки</div>
                 <div className="bg-white/5 p-3 rounded-lg">
                   {selectedResult.status === 'pending' && 'Ожидание'}
                   {selectedResult.status === 'checking' && (
@@ -159,22 +146,22 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
               {(selectedResult.status === 'checking' || selectedResult.status === 'done') && (
                 <div className="space-y-2">
-                  <div className="text-sm text-white/60">Прогресс</div>
+                  <div className="text-sm text-white/60">Прогресс проверки</div>
                   <Progress value={selectedResult.progress} className="h-2" />
-                  <div className="text-xs text-white/60">
+                  <div className="text-xs text-white/60 mt-1">
                     Проверено {selectedResult.checkedRpcs} из {selectedResult.totalRpcs} RPC
                   </div>
                 </div>
               )}
 
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Балансы</div>
+                <div className="text-sm text-white/60">Найденные балансы</div>
                 <div className="space-y-3 border border-white/10 rounded-lg p-4 bg-white/5">
                   {selectedResult.balances.length > 0 ? (
                     selectedResult.balances.map((balance, idx) => (
                       <div key={idx} className="space-y-1 p-3 bg-white/5 rounded-lg">
                         <div className="font-medium text-white/90">{balance.chainId}</div>
-                        <div className="font-mono text-sm text-white/90">{balance.amount}</div>
+                        <div className="font-mono text-sm text-white/90">{balance.amount || '0'}</div>
                         {balance.rpcUrl && (
                           <div className="text-xs text-white/60 break-all">
                             RPC: {balance.rpcUrl}
