@@ -1,8 +1,7 @@
 import axios from 'axios';
 import Web3 from 'web3';
 import { toast } from 'sonner';
-import { hdkey } from 'ethereumjs-wallet';
-import * as bip39 from 'bip39';
+import { ethers } from 'ethers';
 
 interface Chain {
   name: string;
@@ -44,7 +43,8 @@ export const fetchChainList = async () => {
           const isHttps = rpc.startsWith('http');
           const isProblematicEndpoint = rpc.includes('bitstack.com') || 
                                       rpc.includes('nodereal.io') ||
-                                      rpc.includes('elastos.net');
+                                      rpc.includes('elastos.net') ||
+                                      rpc.includes('mainnetloop.com');
           return isHttps && !isProblematicEndpoint;
         });
 
@@ -73,9 +73,8 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
     if (!privateKey.startsWith('0x')) {
       privateKey = '0x' + privateKey;
     }
-    const web3 = new Web3();
-    const account = web3.eth.accounts.privateKeyToAccount(privateKey);
-    return account.address;
+    const wallet = new ethers.Wallet(privateKey);
+    return wallet.address;
   } catch (error) {
     console.error('Ошибка получения адреса из приватного ключа:', error);
     return '';
@@ -84,16 +83,8 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
 
 export const deriveAddressFromMnemonic = (mnemonic: string): string => {
   try {
-    if (!bip39.validateMnemonic(mnemonic)) {
-      throw new Error('Некорректная мнемоническая фраза');
-    }
-
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const hdwallet = hdkey.fromMasterSeed(seed);
-    const wallet = hdwallet.derivePath("m/44'/60'/0'/0/0").getWallet();
-    const address = '0x' + wallet.getAddress().toString('hex');
-    
-    return address;
+    const wallet = ethers.Wallet.fromPhrase(mnemonic);
+    return wallet.address;
   } catch (error) {
     console.error('Ошибка получения адреса из мнемоники:', error);
     toast.error('Ошибка при обработке мнемонической фразы');
@@ -120,45 +111,29 @@ export const checkAddressBalance = async (
   let balance = '0';
   let successfulRpc = null;
 
-  const rpcPromises = chain.rpc.map(async (rpc) => {
+  for (const rpc of chain.rpc) {
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), 5000);
-      });
-
-      const web3 = new Web3(new Web3.providers.HttpProvider(rpc));
+      const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
+        timeout: 5000
+      }));
       
       onRpcCheck?.(rpc, false);
 
-      const rawBalance = await Promise.race([
-        web3.eth.getBalance(address),
-        timeoutPromise
-      ]) as string;
-
+      const rawBalance = await web3.eth.getBalance(address);
       const currentBalance = web3.utils.fromWei(rawBalance, 'ether');
       
       onRpcCheck?.(rpc, true);
-      return {
-        balance: currentBalance,
-        rpc
-      };
+      
+      balance = currentBalance;
+      successfulRpc = rpc;
+      break;
     } catch (error) {
       if (isRpcError(error)) {
         console.error(`Ошибка проверки баланса в сети ${chain.name} (${rpc}):`, error);
       }
       onRpcCheck?.(rpc, false);
-      return null;
+      continue;
     }
-  });
-
-  try {
-    const results = await Promise.any(rpcPromises);
-    if (results) {
-      balance = results.balance;
-      successfulRpc = results.rpc;
-    }
-  } catch (error) {
-    console.error(`Не удалось проверить баланс в сети ${chain.name}`);
   }
 
   return {
