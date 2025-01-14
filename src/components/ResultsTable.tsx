@@ -13,10 +13,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 export interface Balance {
   chainId: string;
+  networkName: string;
   amount: string;
   rpcUrl?: string;
 }
@@ -51,58 +53,62 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
   };
 
+  const getNonZeroBalances = (balances: Balance[]) => {
+    return balances.filter(balance => parseFloat(balance.amount) > 0);
+  };
+
   return (
     <>
-      <div className="rounded-md border border-white/10 overflow-x-auto bg-black/20 backdrop-blur-sm">
+      <div className="win98-container overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-white/5 border-white/10">
-              <TableHead className="text-white/70">Адрес</TableHead>
-              <TableHead className="text-white/70">Тип</TableHead>
-              <TableHead className="text-white/70">Статус</TableHead>
-              <TableHead className="text-white/70">Прогресс</TableHead>
-              <TableHead className="text-white/70">Балансы в реальном времени</TableHead>
+            <TableRow className="hover:bg-[#dfdfdf] border-b border-[#808080]">
+              <TableHead>Адрес</TableHead>
+              <TableHead>Тип</TableHead>
+              <TableHead>Статус</TableHead>
+              <TableHead>Прогресс</TableHead>
+              <TableHead>Найденные балансы</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {results.map((result, index) => (
-              <TableRow key={index} className="hover:bg-white/5 border-white/10">
+              <TableRow key={index} className="hover:bg-[#dfdfdf] border-b border-[#808080]">
                 <TableCell 
-                  className="font-mono text-xs md:text-sm break-all cursor-pointer hover:text-blue-400 transition-colors text-white/90"
+                  className="font-mono text-xs md:text-sm break-all cursor-pointer hover:text-blue-600 transition-colors"
                   onClick={() => setSelectedResult(result)}
                 >
                   {result.address}
                 </TableCell>
-                <TableCell className="text-sm text-white/90">{getTypeLabel(result.type)}</TableCell>
-                <TableCell className="text-sm">
-                  {result.status === 'pending' && <span className="text-white/60">Ожидание</span>}
+                <TableCell>{getTypeLabel(result.type)}</TableCell>
+                <TableCell>
+                  {result.status === 'pending' && <span className="text-gray-600">Ожидание</span>}
                   {result.status === 'checking' && (
-                    <span className="text-yellow-500 animate-pulse">Проверка...</span>
+                    <span className="text-blue-600 animate-pulse">Проверка...</span>
                   )}
                   {result.status === 'done' && (
-                    <span className="text-green-400">Завершено</span>
+                    <span className="text-green-600">Завершено</span>
                   )}
                 </TableCell>
                 <TableCell>
                   {(result.status === 'checking' || result.status === 'done') && (
                     <div className="space-y-2">
-                      <Progress value={result.progress} className="h-2 bg-white/10" />
-                      <div className="text-xs text-white/60">
+                      <Progress value={result.progress} className="win98-inset h-2" />
+                      <div className="text-xs text-gray-600">
                         Проверено {result.checkedRpcs} из {result.totalRpcs} RPC
                       </div>
                     </div>
                   )}
                 </TableCell>
                 <TableCell>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {result.balances.map((balance, idx) => (
-                      <div key={idx} className="text-xs md:text-sm bg-white/5 p-2 rounded-md backdrop-blur-sm border border-white/10">
-                        <span className="font-medium text-white/90">{balance.chainId}:</span>{' '}
-                        <span className="font-mono text-white/90">{balance.amount || '0'}</span>
+                  <div className="space-y-1">
+                    {getNonZeroBalances(result.balances).map((balance, idx) => (
+                      <div key={idx} className="text-xs md:text-sm win98-inset p-2">
+                        <span className="font-medium">{balance.networkName}:</span>{' '}
+                        <span className="font-mono">{balance.amount}</span>
                       </div>
                     ))}
                     {result.status === 'checking' && (
-                      <div className="text-xs text-white/60 animate-pulse">
+                      <div className="text-xs text-gray-600 animate-pulse">
                         Проверка балансов...
                       </div>
                     )}
@@ -115,59 +121,62 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       </div>
 
       <Dialog open={!!selectedResult} onOpenChange={() => setSelectedResult(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-gray-900/95 backdrop-blur-sm text-white border border-white/10">
+        <DialogContent className="win98-container max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">Детальная информация</DialogTitle>
+            <DialogTitle>Детальная информация</DialogTitle>
+            <DialogDescription>
+              Полная информация о балансах на всех проверенных сетях
+            </DialogDescription>
           </DialogHeader>
           
           {selectedResult && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Адрес</div>
-                <div className="font-mono text-sm break-all bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-sm text-gray-600">Адрес</div>
+                <div className="font-mono text-sm break-all win98-inset p-3">
                   {selectedResult.address}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Тип</div>
-                <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-sm text-gray-600">Тип</div>
+                <div className="win98-inset p-3">
                   {getTypeLabel(selectedResult.type)}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Статус проверки</div>
-                <div className="bg-white/5 p-3 rounded-lg border border-white/10">
+                <div className="text-sm text-gray-600">Статус проверки</div>
+                <div className="win98-inset p-3">
                   {selectedResult.status === 'pending' && 'Ожидание'}
                   {selectedResult.status === 'checking' && (
-                    <span className="text-yellow-500 animate-pulse">Проверка...</span>
+                    <span className="text-blue-600 animate-pulse">Проверка...</span>
                   )}
                   {selectedResult.status === 'done' && (
-                    <span className="text-green-400">Завершено</span>
+                    <span className="text-green-600">Завершено</span>
                   )}
                 </div>
               </div>
 
               {(selectedResult.status === 'checking' || selectedResult.status === 'done') && (
                 <div className="space-y-2">
-                  <div className="text-sm text-white/60">Прогресс проверки</div>
-                  <Progress value={selectedResult.progress} className="h-2 bg-white/10" />
-                  <div className="text-xs text-white/60 mt-1">
+                  <div className="text-sm text-gray-600">Прогресс проверки</div>
+                  <Progress value={selectedResult.progress} className="win98-inset h-2" />
+                  <div className="text-xs text-gray-600 mt-1">
                     Проверено {selectedResult.checkedRpcs} из {selectedResult.totalRpcs} RPC
                   </div>
                 </div>
               )}
 
               <div className="space-y-2">
-                <div className="text-sm text-white/60">Балансы в реальном времени</div>
-                <div className="space-y-3 border border-white/10 rounded-lg p-4 bg-white/5 max-h-60 overflow-y-auto">
+                <div className="text-sm text-gray-600">Все балансы</div>
+                <div className="space-y-3 win98-inset p-4 max-h-60 overflow-y-auto">
                   {selectedResult.balances.map((balance, idx) => (
-                    <div key={idx} className="space-y-1 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <div className="font-medium text-white/90">{balance.chainId}</div>
-                      <div className="font-mono text-sm text-white/90">{balance.amount || '0'}</div>
+                    <div key={idx} className="space-y-1 win98-container p-3">
+                      <div className="font-medium">{balance.networkName}</div>
+                      <div className="font-mono text-sm">{balance.amount || '0'}</div>
                       {balance.rpcUrl && (
-                        <div className="text-xs text-white/60 break-all">
+                        <div className="text-xs text-gray-600 break-all">
                           RPC: {balance.rpcUrl}
                         </div>
                       )}

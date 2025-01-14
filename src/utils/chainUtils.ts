@@ -10,16 +10,14 @@ interface Chain {
 
 export interface ChainBalance {
   chainId: string;
+  networkName: string;
   amount: string;
   rpcUrl?: string;
 }
 
-// Кэш для рабочих RPC
-const workingRpcCache: { [chainId: number]: string } = {};
-
 export const fetchChainList = async () => {
   try {
-    console.log('Fetching chain list...');
+    console.log('Загрузка списка сетей...');
     const chainList: Chain[] = [];
     
     const response = await axios.get('https://raw.githubusercontent.com/XDeFi-tech/chainlist-json/refs/heads/main/export.json');
@@ -36,10 +34,10 @@ export const fetchChainList = async () => {
       }
     }
     
-    console.log(`Loaded ${chainList.length} chains with HTTP RPCs`);
+    console.log(`Загружено ${chainList.length} сетей с HTTP RPC`);
     return chainList;
   } catch (error) {
-    console.error('Error fetching chain list:', error);
+    console.error('Ошибка загрузки списка сетей:', error);
     return [];
   }
 };
@@ -53,7 +51,7 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
     const account = web3.eth.accounts.privateKeyToAccount(privateKey);
     return account.address;
   } catch (error) {
-    console.error('Error deriving address from private key:', error);
+    console.error('Ошибка получения адреса из приватного ключа:', error);
     return '';
   }
 };
@@ -66,7 +64,7 @@ export const deriveAddressFromMnemonic = (mnemonic: string): string => {
     hdWallet.add(account);
     return account.address;
   } catch (error) {
-    console.error('Error deriving address from mnemonic:', error);
+    console.error('Ошибка получения адреса из мнемоники:', error);
     return '';
   }
 };
@@ -79,25 +77,37 @@ export const checkAddressBalance = async (
   let balance = '0';
   let successfulRpc = null;
 
-  for (const rpc of chain.rpc) {
+  const rpcPromises = chain.rpc.map(async (rpc) => {
     try {
       const provider = new Web3.providers.HttpProvider(rpc);
       const web3 = new Web3(provider);
-
+      
       onRpcCheck?.(rpc, false);
       const rawBalance = await web3.eth.getBalance(address);
-      balance = web3.utils.fromWei(rawBalance, 'ether');
-      successfulRpc = rpc;
+      const currentBalance = web3.utils.fromWei(rawBalance, 'ether');
+      
       onRpcCheck?.(rpc, true);
-      break;
+      return {
+        balance: currentBalance,
+        rpc
+      };
     } catch (error) {
-      console.error(`Error checking balance on ${chain.name} (${rpc}):`, error);
+      console.error(`Ошибка проверки баланса в сети ${chain.name} (${rpc}):`, error);
       onRpcCheck?.(rpc, false);
+      return null;
     }
+  });
+
+  const results = await Promise.race(rpcPromises);
+  
+  if (results) {
+    balance = results.balance;
+    successfulRpc = results.rpc;
   }
 
   return {
     chainId: chain.name,
+    networkName: `Chain ${chain.chainId}`,
     amount: balance,
     rpcUrl: successfulRpc
   };
