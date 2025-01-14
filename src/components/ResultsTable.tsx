@@ -162,27 +162,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               <div className="space-y-2">
                 <div className="text-sm text-white/60">Балансы в реальном времени</div>
                 <div className="space-y-3 border border-white/10 rounded-lg p-4 bg-white/5 max-h-60 overflow-y-auto">
-                  {selectedResult.balances.length > 0 ? (
-                    selectedResult.balances.map((balance, idx) => (
-                      <div key={idx} className="space-y-1 p-3 bg-white/5 rounded-lg border border-white/10">
-                        <div className="font-medium text-white/90">{balance.chainId}</div>
-                        <div className="font-mono text-sm text-white/90">{balance.amount || '0'}</div>
-                        {balance.rpcUrl && (
-                          <div className="text-xs text-white/60 break-all">
-                            RPC: {balance.rpcUrl}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-sm text-white/60">
-                      {selectedResult.status === 'pending' && 'Ожидание начала проверки...'}
-                      {selectedResult.status === 'checking' && (
-                        <span className="animate-pulse">Проверка балансов...</span>
+                  {selectedResult.balances.map((balance, idx) => (
+                    <div key={idx} className="space-y-1 p-3 bg-white/5 rounded-lg border border-white/10">
+                      <div className="font-medium text-white/90">{balance.chainId}</div>
+                      <div className="font-mono text-sm text-white/90">{balance.amount || '0'}</div>
+                      {balance.rpcUrl && (
+                        <div className="text-xs text-white/60 break-all">
+                          RPC: {balance.rpcUrl}
+                        </div>
                       )}
-                      {selectedResult.status === 'done' && 'Балансы не найдены'}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </div>

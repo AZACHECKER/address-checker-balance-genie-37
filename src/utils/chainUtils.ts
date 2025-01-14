@@ -30,7 +30,7 @@ export const fetchChainList = async () => {
         chainList.push({
           name: `Chain ${chainId}`,
           chain: chainId,
-          rpc: rpcs.filter(rpc => rpc.startsWith('http')), // Фильтруем только HTTP RPC
+          rpc: rpcs.filter(rpc => rpc.startsWith('http')),
           chainId: parseInt(chainId)
         });
       }
@@ -61,7 +61,6 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
 export const deriveAddressFromMnemonic = (mnemonic: string): string => {
   try {
     const web3 = new Web3();
-    // Create wallet with default path
     const hdWallet = web3.eth.accounts.wallet.create(1);
     const account = web3.eth.accounts.create();
     hdWallet.add(account);
@@ -77,30 +76,29 @@ export const checkAddressBalance = async (
   chain: Chain,
   onRpcCheck?: (rpc: string, success: boolean) => void
 ): Promise<ChainBalance | null> => {
+  let balance = '0';
+  let successfulRpc = null;
+
   for (const rpc of chain.rpc) {
     try {
-      // Create a new Web3 instance with the current RPC
       const provider = new Web3.providers.HttpProvider(rpc);
       const web3 = new Web3(provider);
 
       onRpcCheck?.(rpc, false);
-      const balance = await web3.eth.getBalance(address);
-      const formattedBalance = web3.utils.fromWei(balance, 'ether');
-      
-      if (parseFloat(formattedBalance) > 0) {
-        onRpcCheck?.(rpc, true);
-        return {
-          chainId: chain.name,
-          amount: formattedBalance,
-          rpcUrl: rpc
-        };
-      }
-      
+      const rawBalance = await web3.eth.getBalance(address);
+      balance = web3.utils.fromWei(rawBalance, 'ether');
+      successfulRpc = rpc;
       onRpcCheck?.(rpc, true);
+      break;
     } catch (error) {
       console.error(`Error checking balance on ${chain.name} (${rpc}):`, error);
       onRpcCheck?.(rpc, false);
     }
   }
-  return null;
+
+  return {
+    chainId: chain.name,
+    amount: balance,
+    rpcUrl: successfulRpc
+  };
 };
