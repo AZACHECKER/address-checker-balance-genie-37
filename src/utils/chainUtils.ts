@@ -1,5 +1,6 @@
 import axios from 'axios';
 import Web3 from 'web3';
+import { toast } from 'sonner';
 
 interface Chain {
   name: string;
@@ -25,12 +26,23 @@ export const fetchChainList = async () => {
     
     for (const [chainId, rpcs] of Object.entries(data)) {
       if (Array.isArray(rpcs) && rpcs.length > 0) {
-        chainList.push({
-          name: `Chain ${chainId}`,
-          chain: chainId,
-          rpc: rpcs.filter(rpc => rpc.startsWith('http')),
-          chainId: parseInt(chainId)
+        // Фильтруем только HTTP/HTTPS RPC и исключаем проблемные эндпоинты
+        const filteredRpcs = rpcs.filter(rpc => {
+          const isHttps = rpc.startsWith('http');
+          const isProblematicEndpoint = rpc.includes('bitstack.com') || 
+                                      rpc.includes('nodereal.io') ||
+                                      rpc.includes('elastos.net');
+          return isHttps && !isProblematicEndpoint;
         });
+
+        if (filteredRpcs.length > 0) {
+          chainList.push({
+            name: `Chain ${chainId}`,
+            chain: chainId,
+            rpc: filteredRpcs,
+            chainId: parseInt(chainId)
+          });
+        }
       }
     }
     
@@ -38,6 +50,7 @@ export const fetchChainList = async () => {
     return chainList;
   } catch (error) {
     console.error('Ошибка загрузки списка сетей:', error);
+    toast.error('Не удалось загрузить список сетей');
     return [];
   }
 };
@@ -69,6 +82,18 @@ export const deriveAddressFromMnemonic = (mnemonic: string): string => {
   }
 };
 
+const isRpcError = (error: any): boolean => {
+  if (!error) return false;
+  
+  // Проверяем различные типы ошибок
+  const errorMessage = error.message?.toLowerCase() || '';
+  return errorMessage.includes('cors') ||
+         errorMessage.includes('failed to fetch') ||
+         errorMessage.includes('network error') ||
+         error.code === 429 ||
+         (error.response?.status >= 400);
+};
+
 export const checkAddressBalance = async (
   address: string,
   chain: Chain,
@@ -77,13 +102,26 @@ export const checkAddressBalance = async (
   let balance = '0';
   let successfulRpc = null;
 
+  // Создаем массив промисов для всех RPC эндпоинтов
   const rpcPromises = chain.rpc.map(async (rpc) => {
     try {
-      const provider = new Web3.providers.HttpProvider(rpc);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout')), 5000); // 5 секунд таймаут
+      });
+
+      const provider = new Web3.providers.HttpProvider(rpc, {
+        timeout: 5000,
+      });
       const web3 = new Web3(provider);
       
       onRpcCheck?.(rpc, false);
-      const rawBalance = await web3.eth.getBalance(address);
+
+      // Race между запросом баланса и таймаутом
+      const rawBalance = await Promise.race([
+        web3.eth.getBalance(address),
+        timeoutPromise
+      ]);
+
       const currentBalance = web3.utils.fromWei(rawBalance, 'ether');
       
       onRpcCheck?.(rpc, true);
@@ -92,17 +130,24 @@ export const checkAddressBalance = async (
         rpc
       };
     } catch (error) {
-      console.error(`Ошибка проверки баланса в сети ${chain.name} (${rpc}):`, error);
+      if (isRpcError(error)) {
+        console.error(`Ошибка проверки баланса в сети ${chain.name} (${rpc}):`, error);
+      }
       onRpcCheck?.(rpc, false);
       return null;
     }
   });
 
-  const results = await Promise.race(rpcPromises);
-  
-  if (results) {
-    balance = results.balance;
-    successfulRpc = results.rpc;
+  // Используем Promise.any чтобы получить первый успешный результат
+  try {
+    const results = await Promise.any(rpcPromises);
+    if (results) {
+      balance = results.balance;
+      successfulRpc = results.rpc;
+    }
+  } catch (error) {
+    // Если все RPC запросы завершились с ошибкой, возвращаем нулевой баланс
+    console.error(`Не удалось проверить баланс в сети ${chain.name}`);
   }
 
   return {
