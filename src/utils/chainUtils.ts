@@ -1,6 +1,8 @@
 import axios from 'axios';
 import Web3 from 'web3';
 import { toast } from 'sonner';
+import { hdkey } from 'ethereumjs-wallet';
+import * as bip39 from 'bip39';
 
 interface Chain {
   name: string;
@@ -16,6 +18,18 @@ export interface ChainBalance {
   rpcUrl?: string;
 }
 
+const NETWORK_NAMES: { [key: string]: string } = {
+  "1": "Ethereum",
+  "56": "BNB Smart Chain",
+  "137": "Polygon",
+  "42161": "Arbitrum One",
+  "10": "Optimism",
+  "43114": "Avalanche",
+  "250": "Fantom",
+  "8453": "Base",
+  "324": "zkSync Era",
+};
+
 export const fetchChainList = async () => {
   try {
     console.log('Загрузка списка сетей...');
@@ -26,7 +40,6 @@ export const fetchChainList = async () => {
     
     for (const [chainId, rpcs] of Object.entries(data)) {
       if (Array.isArray(rpcs) && rpcs.length > 0) {
-        // Фильтруем только HTTP/HTTPS RPC и исключаем проблемные эндпоинты
         const filteredRpcs = rpcs.filter(rpc => {
           const isHttps = rpc.startsWith('http');
           const isProblematicEndpoint = rpc.includes('bitstack.com') || 
@@ -37,7 +50,7 @@ export const fetchChainList = async () => {
 
         if (filteredRpcs.length > 0) {
           chainList.push({
-            name: `Chain ${chainId}`,
+            name: NETWORK_NAMES[chainId] || `Chain ${chainId}`,
             chain: chainId,
             rpc: filteredRpcs,
             chainId: parseInt(chainId)
@@ -71,13 +84,19 @@ export const deriveAddressFromPrivateKey = (privateKey: string): string => {
 
 export const deriveAddressFromMnemonic = (mnemonic: string): string => {
   try {
-    const web3 = new Web3();
-    const hdWallet = web3.eth.accounts.wallet.create(1);
-    const account = web3.eth.accounts.create();
-    hdWallet.add(account);
-    return account.address;
+    if (!bip39.validateMnemonic(mnemonic)) {
+      throw new Error('Некорректная мнемоническая фраза');
+    }
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const hdwallet = hdkey.fromMasterSeed(seed);
+    const wallet = hdwallet.derivePath("m/44'/60'/0'/0/0").getWallet();
+    const address = '0x' + wallet.getAddress().toString('hex');
+    
+    return address;
   } catch (error) {
     console.error('Ошибка получения адреса из мнемоники:', error);
+    toast.error('Ошибка при обработке мнемонической фразы');
     return '';
   }
 };
@@ -85,7 +104,6 @@ export const deriveAddressFromMnemonic = (mnemonic: string): string => {
 const isRpcError = (error: any): boolean => {
   if (!error) return false;
   
-  // Проверяем различные типы ошибок
   const errorMessage = error.message?.toLowerCase() || '';
   return errorMessage.includes('cors') ||
          errorMessage.includes('failed to fetch') ||
@@ -102,25 +120,20 @@ export const checkAddressBalance = async (
   let balance = '0';
   let successfulRpc = null;
 
-  // Создаем массив промисов для всех RPC эндпоинтов
   const rpcPromises = chain.rpc.map(async (rpc) => {
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout')), 5000); // 5 секунд таймаут
+        setTimeout(() => reject(new Error('Timeout')), 5000);
       });
 
-      const provider = new Web3.providers.HttpProvider(rpc, {
-        timeout: 5000,
-      });
-      const web3 = new Web3(provider);
+      const web3 = new Web3(new Web3.providers.HttpProvider(rpc));
       
       onRpcCheck?.(rpc, false);
 
-      // Race между запросом баланса и таймаутом
       const rawBalance = await Promise.race([
         web3.eth.getBalance(address),
         timeoutPromise
-      ]);
+      ]) as string;
 
       const currentBalance = web3.utils.fromWei(rawBalance, 'ether');
       
@@ -138,7 +151,6 @@ export const checkAddressBalance = async (
     }
   });
 
-  // Используем Promise.any чтобы получить первый успешный результат
   try {
     const results = await Promise.any(rpcPromises);
     if (results) {
@@ -146,13 +158,12 @@ export const checkAddressBalance = async (
       successfulRpc = results.rpc;
     }
   } catch (error) {
-    // Если все RPC запросы завершились с ошибкой, возвращаем нулевой баланс
     console.error(`Не удалось проверить баланс в сети ${chain.name}`);
   }
 
   return {
-    chainId: chain.name,
-    networkName: `Chain ${chain.chainId}`,
+    chainId: chain.chain,
+    networkName: chain.name,
     amount: balance,
     rpcUrl: successfulRpc
   };
