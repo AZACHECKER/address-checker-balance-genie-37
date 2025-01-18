@@ -27,6 +27,16 @@ const NETWORK_NAMES: { [key: string]: string } = {
   "250": "Fantom",
   "8453": "Base",
   "324": "zkSync Era",
+  "59144": "Linea",
+  "534352": "Scroll",
+  "7777777": "Zora",
+  "424": "PGN",
+  "1101": "Polygon zkEVM",
+  "5000": "Mantle",
+  "169": "Manta Pacific",
+  "204": "opBNB",
+  "81457": "Blast",
+  "42766": "ZKFair",
 };
 
 export const fetchChainList = async () => {
@@ -34,7 +44,7 @@ export const fetchChainList = async () => {
     console.log('Загрузка списка сетей...');
     const chainList: Chain[] = [];
     
-    const response = await axios.get('https://raw.githubusercontent.com/XDeFi-tech/chainlist-json/refs/heads/main/export.json');
+    const response = await axios.get('https://raw.githubusercontent.com/XDeFi-tech/chainlist-json/main/export.json');
     const data = response.data;
     
     for (const [chainId, rpcs] of Object.entries(data)) {
@@ -44,7 +54,9 @@ export const fetchChainList = async () => {
           const isProblematicEndpoint = rpc.includes('bitstack.com') || 
                                       rpc.includes('nodereal.io') ||
                                       rpc.includes('elastos.net') ||
-                                      rpc.includes('mainnetloop.com');
+                                      rpc.includes('mainnetloop.com') ||
+                                      rpc.includes('ankr.com') ||
+                                      rpc.includes('getblock.io');
           return isHttps && !isProblematicEndpoint;
         });
 
@@ -113,9 +125,8 @@ export const checkAddressBalance = async (
 
   for (const rpc of chain.rpc) {
     try {
-      const web3 = new Web3(new Web3.providers.HttpProvider(rpc, {
-        timeout: 5000
-      }));
+      const provider = new Web3.providers.HttpProvider(rpc);
+      const web3 = new Web3(provider);
       
       onRpcCheck?.(rpc, false);
 
